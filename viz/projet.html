@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<style type="text/css" media="screen, print">
+			body { margin: 30px 50px; font-family: sans-serif; }
+      .axis { font: 20px sans-serif; }
+      .main {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+		</style>
+		<title>Breakfast</title>
+	</head>
+	<body>
+		<h1>Classement petit déjeuner</h1>
+
+		<script src="../vendor/d3-7.6.1/dist/d3.js"></script>
+        
+		<script>
+
+var body = d3.select("body");
+var div = body.append('div').attr("class", 'main')
+var divchilds = {
+	'1':div.append('div').attr('class', 'container').style("width", "80%"),
+	'2':div.append('div').attr('class', 'container').style("width", "20%"),
+}
+
+var margin = {top: 10, right: 10, bottom: 45, left: 45},
+    width  =1000- margin.left - margin.right,
+    height =1000- margin.top - margin.bottom;
+
+
+d3.tsv("../tsv/products_only_breakfast-cereals.tsv", d => (
+	{
+		name:   d.name,
+		energy:  d.energy_100g,
+		nutriscore: d.nutriscore,
+		fat: d.fat_100g,
+		sugar: d.sugars_100g,
+    fiber: d.fiber_100g,
+    prot: d.proteins_100g,
+	}
+)).then(data => data.filter(d => d.name != "")
+.filter(d=>d.energy!="")
+.filter(d=>d.fat!="")
+.filter(d=>d.sugar!="")
+.filter(d=>d.fiber!="")
+.filter(d=>d.prot!="")
+.filter(d=>d.nutriscore!="")
+)
+.then(function(data) {
+  
+var svg = divchilds[1]
+  .append("svg")
+    .attr("width", width + margin.left + margin.right+650)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform",
+          "translate(" + margin.left + "," + margin.top + ")");
+
+//On selectionne les 20 premières de la liste
+var selection = data.sort(function(a,b) { return -a.energy - -b.energy }).slice(0, 20) 
+
+var combo_box=["Top 20","Bottom 20","Top 50","Bottom 50"]
+// dropdown 
+let dropdown = body.select('h1').append('select');
+var options = dropdown.selectAll('option')
+  .data(combo_box)
+  .enter().append('option')
+    .text(d => d)
+    .attr('value', d => d);
+
+//Les données classées à afficher
+var selection_top20 = data.sort(function(a,b) { return -a.energy - -b.energy }).slice(0, 20)
+var selection_bottom20 = data.sort(function(a,b) { return +a.energy - +b.energy }).slice(0, 20)
+var selection_top50 = data.sort(function(a,b) { return -a.energy - -b.energy }).slice(0, 50)
+var selection_bottom50 = data.sort(function(a,b) { return +a.energy - +b.energy }).slice(0, 50)
+
+//svg2 qui contiendra la légende
+var svg2 = divchilds[2]
+  .append("svg")
+  .attr("width", 150)
+  .attr("height", 150)
+  .attr('transform', d => `translate(450,-400)`)
+
+//!Titre de la zone texte "Légende"
+svg2.append('text')
+  .text ("Légende")
+  .style("font", "20px")
+  .style("font-weight", 700)
+  .attr("fill", 'black')
+  .attr("text-anchor", "left")
+  .style("alignment-baseline", "middle")
+  .attr('x', 20)
+  .attr('y', 20)
+
+var subgroups = ["fat_100g","sugars_100g","fiber_100g","proteins_100g"]
+//La palette des couleurs
+var color = d3.scaleOrdinal()
+  .domain(subgroups)
+  .range(['#FFCD58','#79A9F5','#94C973','#FF6961'])
+
+//Ajout des points
+svg2.selectAll("mydots")
+  .data(subgroups)
+  .enter()
+  .append("circle")
+    .attr("cx", 25)
+    .attr("cy", function(d,i){ return 45 + i*25}) 
+    .attr("r", 7)
+    .style("fill", function(d){ return color(d)})
+    
+
+//Ajout du texte de la légende
+svg2.selectAll("mylabels")
+  .data(subgroups)
+  .enter()
+  .append("text")
+    .attr("x", 35)
+    .attr("y", function(d,i){ return 45 + i*25}) 
+    .style("fill", function(d){ return color(d)})
+    .text(function(d){ return d})
+    .attr("text-anchor", "left")
+    .style("alignment-baseline", "middle")
+    .style("font", "20px")
+    
+    
+function update(top) {
+    svg.selectAll("g > *").remove()
+
+    if(top=="Top 20"){
+		 selection = selection_top20
+    }
+    else if(top=="Bottom 20"){
+      selection = selection_bottom20
+    }
+    else if(top=="Top 50"){
+      selection = selection_top50
+    }
+    else{
+      selection = selection_bottom50
+    }
+
+  // On regroupe les données qui nous intéressent
+  var fats=d3.map(selection, function(d){return(d.fat)})
+  var sugars=d3.map(selection, function(d){return(d.sugar)})
+  var fibers=d3.map(selection, function(d){return(d.fiber)})
+  var prots=d3.map(selection, function(d){return(d.prot)})
+
+  //Ajout du nutriscore au nom
+  var groups = d3.map(selection, function(d){return(d.name+" (nutriscore: "+d.nutriscore+")")})
+
+  var newdata = groups.map((names, index) => {
+    return {
+      name: names,
+      fat_100g: fats[index],
+      sugars_100g: sugars[index],
+      fiber_100g: fibers[index],
+      proteins_100g: prots[index],
+    }
+  });
+  //Axe des X vertical
+  var x = d3.scaleBand()
+      .domain(groups)
+      .range([0, height])
+      .padding([0.2])
+  svg.append("g")
+    .attr('class','axis')
+    .attr('transform', d => `translate(650,0)`)
+    .call(d3.axisLeft(x));
+
+  //Axe Y horizontal
+  var y = d3.scaleLinear()
+    .domain([0, 100])
+    .range([ width-200, 0 ]);
+
+  //Normalisation des données pour représenter le pourcentage
+  console.log(newdata)
+  newdata.forEach(function(d){
+    //Calculer du total
+    tot = 0
+    for (i in subgroups){ name=subgroups[i] ; tot += +d[name] }
+    //Normalisation
+    for (i in subgroups){ name=subgroups[i] ; d[name] = d[name] / tot * 100}
+  })
+
+  var stackedData = d3.stack()
+    .keys(subgroups)
+    (newdata)
+
+  //Afficher les barres
+  svg.append("g")
+    .selectAll("g")
+    // Acceder à la stack the stack data = iterer key par key = group par group
+    .data(stackedData)
+    .enter().append("g")
+      .attr("fill", function(d) { return color(d.key); })
+      .selectAll("rect")
+      //Acceder une deuxième fois pour ajouter les rectangles
+      .data(function(d) { return d; })
+      .enter().append("rect")
+        .attr("x", function(d) { return y(d[1]); })
+        .attr("y", function(d) { return x(d.data.name); })
+        .attr("height", x.bandwidth())
+        .attr("width",function(d) { return y(d[0]) - y(d[1]); })
+        .attr('transform', d => `translate(650,0)`)
+	}
+  
+  dropdown.on('change', e => {
+	update(dropdown.property('value'));
+	});
+ // force la première update
+	dropdown.dispatch('change'); 
+  });
+		</script>
+	</body>
+</html>
